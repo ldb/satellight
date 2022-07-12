@@ -20,10 +20,13 @@ type Satellite struct {
 	ts  time.Time
 }
 
-func NewSatellite(id int) *Satellite {
+func NewSatellite(id int, endpoint string) *Satellite {
+	if endpoint == "" {
+		endpoint = defaultEndpoint
+	}
 	return &Satellite{
 		ID:     id,
-		sender: send.NewSender(defaultQueueSize, defaultEndpoint),
+		sender: send.NewSender(defaultQueueSize, endpoint),
 		Loc:    randomLocation(),
 		ts:     time.Now(),
 	}
@@ -59,7 +62,7 @@ func (s *Satellite) Orbit() error {
 			break
 		}
 	})
-	receiver := receive.NewReceiver(defaultEndpoint, handler)
+	receiver := receive.NewReceiver(*endpoint, handler)
 
 	go receiver.Run()
 

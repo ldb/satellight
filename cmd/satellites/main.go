@@ -4,31 +4,18 @@ import (
 	"flag"
 	"log"
 	"time"
-
-	"github.com/ldb/satellight/protocol"
-	"github.com/ldb/satellight/send"
 )
 
-var groundStationAddress = flag.String("groundstation", "http://localhost:8000", "URL of the ground station")
+var satelliteCount = flag.Int("satelliteCount", 5, "Count of satellites launched")
+var endpoint = flag.String("endpoint", "", "Not the default endpoint")
 
 func main() {
 	flag.Parse()
 
-	log.Println("started sender")
+	log.Println("Satellites go space")
 
-	for i := 0; i < 5; i++ {
-		go sendStuff()
-	}
-	sendStuff()
-}
-
-func sendStuff() {
-	sender := send.NewSender(5, "http://localhost:8000")
-	i := 0
-	for {
-		i++
-		sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{Kind: protocol.KindAdjustTime}})
-		log.Printf("enqueued protocol %d", i)
-		time.Sleep(1 * time.Second)
+	for i := 0; i < *satelliteCount; i++ {
+		go NewSatellite(i, *endpoint).Orbit()
+		time.Sleep(5 * time.Second)
 	}
 }
