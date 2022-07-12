@@ -2,18 +2,21 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
+	"fmt"
+	"github.com/ldb/satellight/protocol"
+	"github.com/ldb/satellight/receive"
 	"log"
-	"net/http"
 )
 
 var satelliteAddress = flag.String("satellites", "http://localhost:9000", "Base URL of the satellites")
+var groundStationAddress = flag.String("groundstation", ":8000", "address to listen on")
 
 func main() {
 	flag.Parse()
 
-	log.Fatal(http.ListenAndServe(":8000", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, _ := ioutil.ReadAll(r.Body)
-		log.Printf("received: %q", string(b))
-	})))
+	r := receive.NewReceiver(*groundStationAddress, func(message protocol.SpaceMessage) {
+		fmt.Printf("%+v", message)
+	})
+	log.Fatal(r.Run())
+
 }

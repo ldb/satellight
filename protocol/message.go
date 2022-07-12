@@ -8,6 +8,9 @@ type Kind int
 
 type SpaceMessageMarshaler interface {
 	MarshalSpaceMessage() ([]byte, error)
+}
+
+type SpaceMessageUnmarshaler interface {
 	UnmarshalSpaceMessage([]byte) error
 }
 
@@ -20,6 +23,8 @@ const (
 
 type SpaceMessage struct {
 	Kind Kind `json:"kind"`
+
+	SenderID int
 
 	Location   Location `json:"loc"`
 	OzoneLevel float64  `json:"ol"`

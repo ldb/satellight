@@ -27,7 +27,7 @@ func sendStuff() {
 	i := 0
 	for {
 		i++
-		sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{Kind: protocol.KindAdjustTime, OzoneLevel: generateOzoneLevel()}})
+		sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{Kind: protocol.KindAdjustTime}})
 		log.Printf("enqueued protocol %d", i)
 		time.Sleep(1 * time.Second)
 	}

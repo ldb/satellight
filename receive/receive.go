@@ -1,10 +1,12 @@
 package receive
 
 import (
+	"encoding/json"
 	"github.com/ldb/satellight/protocol"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 )
 
 const defaultListenAddress = ":8000"
@@ -26,6 +28,12 @@ func NewReceiver(addr string, handle SpaceMessageHandler) *Receiver {
 }
 
 func handleMessage(msgHandle SpaceMessageHandler) http.HandlerFunc {
+	type message struct {
+		ID        int                   `json:"id"`
+		Timestamp time.Time             `json:"ts"`
+		Data      protocol.SpaceMessage `json:"data"`
+	}
+
 	return func(writer http.ResponseWriter, request *http.Request) {
 		buf, err := ioutil.ReadAll(request.Body)
 		if err != nil {
@@ -33,13 +41,14 @@ func handleMessage(msgHandle SpaceMessageHandler) http.HandlerFunc {
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		msg := new(protocol.SpaceMessage)
-		if err := msg.UnmarshalSpaceMessage(buf); err != nil {
+		msg := new(message)
+		if err := json.Unmarshal(buf, &msg); err != nil {
 			log.Printf("error unmarshaling SpaceMessage: %v", err)
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		msgHandle(*msg)
+
+		msgHandle(msg.Data)
 		writer.WriteHeader(http.StatusOK)
 	}
 }
