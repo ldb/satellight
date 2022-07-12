@@ -1,15 +1,18 @@
 package main
 
 import (
+	"flag"
 	"log"
-	"math/rand"
 	"time"
 
 	"github.com/ldb/satellight/protocol"
 	"github.com/ldb/satellight/send"
 )
 
+var groundStationAddress = flag.String("groundstation", "http://localhost:8000", "URL of the ground station")
+
 func main() {
+	flag.Parse()
 
 	log.Println("started sender")
 
@@ -19,8 +22,8 @@ func main() {
 	sendStuff(6)
 }
 
-func sendStuff(id int) {
-	sender := send.NewSender(id, 5, "http://localhost:8000")
+func sendStuff() {
+	sender := send.NewSender(5, "http://localhost:8000")
 	go sender.Run()
 	i := 0
 	for {
@@ -29,8 +32,4 @@ func sendStuff(id int) {
 		log.Printf("enqueued protocol %d", i)
 		time.Sleep(1 * time.Second)
 	}
-}
-
-func generateOzoneLevel() float64 {
-	return rand.Float64()/2 + rand.Float64()/2
 }

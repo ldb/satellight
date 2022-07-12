@@ -10,30 +10,33 @@ import (
 	"time"
 )
 
-const defaultRetries = 15
-
-// Sender sends messages in a reliable way
+// Sender sends messages in a reliable way by queueing them and retrying any failed delivery.
+// Sender is designed to be used only by a single caller and thus not concurrency safe!
 type Sender struct {
 	lastID int
-	size   int
-	id     int
 
-	q chan Message
+	queue chan Message
 
-	currentMsg Message
+	current Message
 
-	client    *http.Client
-	endpoint  string
+	// This can be used to pass a custom logger to the sender. Left unset it defaults to the log default logger.
+	Logger *log.Logger
+
+	client   *http.Client
+	endpoint string
+
+	// Number of retries for delivery that have already been attempted
 	retries   int
 	nextRetry time.Time
 }
 
-func NewSender(id, queueSize int, endpoint string) *Sender {
+func NewSender(queueSize int, endpoint string) *Sender {
 	s := new(Sender)
-	s.id = id
-	s.q = make(chan Message, queueSize)
+	s.queue = make(chan Message, queueSize)
 	s.endpoint = endpoint
 	s.client = http.DefaultClient
+	s.Logger = log.Default()
+	go s.run()
 	return s
 }
 
@@ -43,6 +46,11 @@ type message struct {
 	ID        int                            `json:"id"`
 	Timestamp time.Time                      `json:"ts"`
 	Data      protocol.SpaceMessageMarshaler `json:"data"`
+}
+
+type Message struct {
+	id      int
+	Payload protocol.SpaceMessageMarshaler
 }
 
 func (s *Sender) sendMessage(msg Message) error {
@@ -74,12 +82,13 @@ func backoff(retries int) time.Time {
 	return time.Now().Add(time.Duration(retries) * time.Second)
 }
 
-func (s *Sender) Run() {
+// run starts the main runloop for the sender. It dequeues any messages and attempts delivery.
+func (s *Sender) run() {
 	for {
-		m := s.currentMsg
+		m := s.current
 		if m.id == 0 {
-			m = <-s.q
-			log.Printf("[%d] dequeued protocol %d", s.id, m.id)
+			m = <-s.queue
+			s.Logger.Printf("dequeued protocol %d", m.id)
 		}
 
 		if !s.nextRetry.Before(time.Now()) {
@@ -89,12 +98,12 @@ func (s *Sender) Run() {
 		if err := s.sendMessage(m); err != nil {
 			s.retries += 1
 			s.nextRetry = backoff(s.retries)
-			s.currentMsg = m
-			log.Printf("[%d]current protocol is %d, err: %v", s.id, m.id, err)
+			s.current = m
+			s.Logger.Printf("current protocol is %d, err: %v", m.id, err)
 			continue
 		}
-		log.Printf("[%d] successfully sent protocol %d", s.id, m.id)
-		s.currentMsg = Message{}
+		s.Logger.Printf("successfully sent protocol %d", m.id)
+		s.current = Message{}
 		s.retries = 0
 		s.nextRetry = time.Now()
 	}
@@ -103,11 +112,6 @@ func (s *Sender) Run() {
 func (s *Sender) EnqueueMessage(message Message) int {
 	s.lastID += 1
 	message.id = s.lastID
-	s.q <- message
+	s.queue <- message
 	return s.lastID
-}
-
-type Message struct {
-	id      int
-	Payload protocol.SpaceMessageMarshaler
 }
