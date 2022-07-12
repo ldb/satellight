@@ -85,8 +85,8 @@ func (s *Satellite) Orbit() error {
 			return errors.New("Deadly crash of satellite :(")
 		}
 
-		// It takes 3 seconds for the satellite to reach new location
+		// It takes 2 seconds for the satellite to reach new location
 		// from which a new message will be sent
-		time.Sleep(3 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 }

@@ -18,7 +18,7 @@ func main() {
 	log.Println("Satellites go space")
 
 	wg := sync.WaitGroup{}
-	for i := 0; i < *satelliteCount; i++ {
+	for i := 1; i <= *satelliteCount; i++ {
 		wg.Add(1)
 		go func() {
 			err := NewSatellite(i, *endpoint).Orbit()

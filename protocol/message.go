@@ -19,7 +19,6 @@ const (
 	KindInvalid Kind = iota
 	KindOzoneLevel
 	KindAdjustCourse
-	KindAdjustTime
 )
 
 type SpaceMessage struct {
