@@ -74,11 +74,15 @@ func (s *Satellite) Orbit() error {
 	// Send messages with current ozone level to groundstation
 	for {
 		currentLevel := s.ReadOzoneLevel()
-		s.sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{
-			Kind:       protocol.KindOzoneLevel,
-			OzoneLevel: currentLevel,
-			Location:   s.Loc,
-		}})
+		s.sender.EnqueueMessage(send.Message{
+			Payload: &protocol.SpaceMessage{
+				SenderID:   s.ID,
+				Kind:       protocol.KindOzoneLevel,
+				Timestamp:  time.Now(),
+				OzoneLevel: currentLevel,
+				Location:   s.Loc,
+			},
+		})
 
 		// The satellite is lost to the ground station
 		if rand.Float64() < 0.05 {
