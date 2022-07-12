@@ -2,7 +2,9 @@ package send
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/ldb/satellight/protocol"
 	"log"
 	"net/http"
 	"time"
@@ -14,6 +16,7 @@ const defaultRetries = 15
 type Sender struct {
 	lastID int
 	size   int
+	id     int
 
 	q chan Message
 
@@ -25,17 +28,35 @@ type Sender struct {
 	nextRetry time.Time
 }
 
-func NewSender(queueSize int, endpoint string) *Sender {
+func NewSender(id, queueSize int, endpoint string) *Sender {
 	s := new(Sender)
+	s.id = id
 	s.q = make(chan Message, queueSize)
 	s.endpoint = endpoint
 	s.client = http.DefaultClient
 	return s
 }
 
-func (s *Sender) sendMessage(message Message) error {
-	b := bytes.NewReader(message.Payload)
-	req, err := http.NewRequest(http.MethodPost, s.endpoint, b)
+// message is the internal representation of a message to send.
+// It needs to export fields for JSON marshalling.
+type message struct {
+	ID        int                            `json:"id"`
+	Timestamp time.Time                      `json:"ts"`
+	Data      protocol.SpaceMessageMarshaler `json:"data"`
+}
+
+func (s *Sender) sendMessage(msg Message) error {
+	m := message{
+		ID:        msg.id,
+		Timestamp: time.Now(),
+		Data:      msg.Payload,
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("error encoding protocol: %w", err)
+	}
+	buf := bytes.NewReader(b)
+	req, err := http.NewRequest(http.MethodPost, s.endpoint, buf)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
@@ -58,7 +79,7 @@ func (s *Sender) Run() {
 		m := s.currentMsg
 		if m.id == 0 {
 			m = <-s.q
-			log.Printf("dequeued message %d", m.id)
+			log.Printf("[%d] dequeued protocol %d", s.id, m.id)
 		}
 
 		if !s.nextRetry.Before(time.Now()) {
@@ -69,10 +90,10 @@ func (s *Sender) Run() {
 			s.retries += 1
 			s.nextRetry = backoff(s.retries)
 			s.currentMsg = m
-			log.Printf("current message is %d, err: %v", m.id, err)
+			log.Printf("[%d]current protocol is %d, err: %v", s.id, m.id, err)
 			continue
 		}
-		log.Printf("successfully sent message %d", m.id)
+		log.Printf("[%d] successfully sent protocol %d", s.id, m.id)
 		s.currentMsg = Message{}
 		s.retries = 0
 		s.nextRetry = time.Now()
@@ -88,5 +109,5 @@ func (s *Sender) EnqueueMessage(message Message) int {
 
 type Message struct {
 	id      int
-	Payload []byte
+	Payload protocol.SpaceMessageMarshaler
 }
