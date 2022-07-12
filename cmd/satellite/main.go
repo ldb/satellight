@@ -1,10 +1,12 @@
 package main
 
 import (
+	"log"
+	"math/rand"
+	"time"
+
 	"github.com/ldb/satellight/protocol"
 	"github.com/ldb/satellight/send"
-	"log"
-	"time"
 )
 
 func main() {
@@ -23,8 +25,12 @@ func sendStuff(id int) {
 	i := 0
 	for {
 		i++
-		sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{Kind: protocol.KindAdjustTime, OzoneLevel: 9.9}})
+		sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{Kind: protocol.KindAdjustTime, OzoneLevel: generateOzoneLevel()}})
 		log.Printf("enqueued protocol %d", i)
 		time.Sleep(1 * time.Second)
 	}
+}
+
+func generateOzoneLevel() float64 {
+	return rand.Float64()/2 + rand.Float64()/2
 }
