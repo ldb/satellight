@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"time"
 )
 
 type Kind int
@@ -28,7 +29,7 @@ type SpaceMessage struct {
 
 	Location   Location `json:"loc"`
 	OzoneLevel float64  `json:"ol"`
-	//Timestamp time.Time
+	Timestamp  time.Time
 }
 
 type Location struct {
