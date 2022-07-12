@@ -17,14 +17,13 @@ func main() {
 	log.Println("started sender")
 
 	for i := 0; i < 5; i++ {
-		go sendStuff(i)
+		go sendStuff()
 	}
-	sendStuff(6)
+	sendStuff()
 }
 
 func sendStuff() {
 	sender := send.NewSender(5, "http://localhost:8000")
-	go sender.Run()
 	i := 0
 	for {
 		i++

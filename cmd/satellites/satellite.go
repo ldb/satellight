@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/ldb/satellight/protocol"
-	"github.com/ldb/satellight/send"
 	"math/rand"
 	"time"
+
+	"github.com/ldb/satellight/protocol"
+	"github.com/ldb/satellight/send"
 )
 
 const defaultQueueSize = 5
@@ -42,7 +43,9 @@ func randomLocation() protocol.Location {
 
 // Steer moves the satellite by a distance towards a new (random) location.
 func (s *Satellite) Steer(distance float64) {
-
+	s.Loc.Alt += distance
+	s.Loc.Lat += distance
+	s.Loc.Lng += distance
 }
 
 func (s *Satellite) Orbit() error {
@@ -51,7 +54,11 @@ func (s *Satellite) Orbit() error {
 	// handle message based on kind
 	//
 	for {
-		// read ozone levels
-		// send ozone levels
+		currentLevel := s.ReadOzoneLevel()
+		s.sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{
+			Kind:       protocol.KindOzoneLevel,
+			OzoneLevel: currentLevel,
+			Location:   s.Loc,
+		}})
 	}
 }
