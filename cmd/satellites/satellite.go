@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ldb/satellight/protocol"
+	"github.com/ldb/satellight/receive"
 	"github.com/ldb/satellight/send"
 )
 
@@ -42,17 +43,27 @@ func randomLocation() protocol.Location {
 }
 
 // Steer moves the satellite by a distance towards a new (random) location.
-func (s *Satellite) Steer(distance float64) {
-	s.Loc.Alt += distance
-	s.Loc.Lat += distance
-	s.Loc.Lng += distance
+func (s *Satellite) Steer(location protocol.Location) {
+	s.Loc = location
 }
 
 func (s *Satellite) Orbit() error {
-	// Start receiver async
-	// receive message
-	// handle message based on kind
-	//
+	// Handle messages received by the satellite
+	handler := receive.SpaceMessageHandler(func(message protocol.SpaceMessage) {
+		switch kind := message.Kind; kind {
+		case protocol.KindAdjustCourse:
+			s.Steer(message.Location)
+			s.sender.Logger.Printf("Satellite steered to new location %+v", s.Loc)
+		default:
+			s.sender.Logger.Printf("Received message from groundstation of kind %d", message.Kind)
+			break
+		}
+	})
+	receiver := receive.NewReceiver(defaultEndpoint, handler)
+
+	go receiver.Run()
+
+	// Send messages with current ozone level to groundstation
 	for {
 		currentLevel := s.ReadOzoneLevel()
 		s.sender.EnqueueMessage(send.Message{Payload: &protocol.SpaceMessage{
