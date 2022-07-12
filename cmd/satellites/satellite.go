@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -20,6 +22,7 @@ type Satellite struct {
 	ts  time.Time
 }
 
+// Initialize new satellite
 func NewSatellite(id int, endpoint string) *Satellite {
 	if endpoint == "" {
 		endpoint = defaultEndpoint
@@ -33,6 +36,7 @@ func NewSatellite(id int, endpoint string) *Satellite {
 }
 
 // ReadOzoneLevel reads the Ozone Levels at the current location.
+// The probability of values around 0,5 is higher than towards the edges
 func (s *Satellite) ReadOzoneLevel() float64 {
 	return rand.Float64()/2 + rand.Float64()/2
 }
@@ -62,7 +66,8 @@ func (s *Satellite) Orbit() error {
 			break
 		}
 	})
-	receiver := receive.NewReceiver(*endpoint, handler)
+
+	receiver := receive.NewReceiver(fmt.Sprintf(":%d", standartPort+s.ID), handler)
 
 	go receiver.Run()
 
@@ -74,5 +79,14 @@ func (s *Satellite) Orbit() error {
 			OzoneLevel: currentLevel,
 			Location:   s.Loc,
 		}})
+
+		// The satellite is lost to the ground station
+		if rand.Float64() < 0.05 {
+			return errors.New("Deadly crash of satellite :(")
+		}
+
+		// It takes 3 seconds for the satellite to reach new location
+		// from which a new message will be sent
+		time.Sleep(3 * time.Second)
 	}
 }

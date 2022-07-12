@@ -3,9 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+
 	"github.com/ldb/satellight/protocol"
 	"github.com/ldb/satellight/receive"
-	"log"
 )
 
 var satelliteAddress = flag.String("satellites", "http://localhost:9000", "Base URL of the satellites")
