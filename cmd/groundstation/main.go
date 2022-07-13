@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 )
 
 const satellitesBasePort = 9000
@@ -12,8 +13,8 @@ var groundStationAddress = flag.String("groundstation", ":8000", "address to lis
 
 func main() {
 	flag.Parse()
-
-	g := NewGroundStation(*groundStationAddress)
+	l := log.New(os.Stdout, "GS: ", log.Ltime)
+	g := NewGroundStation(*groundStationAddress, l)
 	log.Printf("groundstation started listening on %s", *groundStationAddress)
 	log.Fatal(g.Run())
 }

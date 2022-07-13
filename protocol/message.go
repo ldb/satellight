@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"math"
 	"time"
 )
 
@@ -35,6 +36,11 @@ type Location struct {
 	Lat float64 `json:"lat"`
 	Lng float64 `json:"lng"`
 	Alt float64 `json:"alt"`
+}
+
+// Distance calculates the distance between two locations in km.
+func (l *Location) Distance(loc Location) float64 {
+	return 1.609344 * 3963.0 * math.Acos((math.Sin(loc.Lat)*math.Sin(l.Lat))+math.Cos(loc.Lat)*math.Cos(l.Lat)*math.Cos(l.Lng-loc.Lng))
 }
 
 func (m *SpaceMessage) MarshalSpaceMessage() ([]byte, error) {

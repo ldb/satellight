@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
@@ -18,20 +19,27 @@ type Satellite struct {
 	ID     int
 	sender *send.Sender
 
-	Loc protocol.Location
-	ts  time.Time
+	Logger *log.Logger
+
+	CurrentLocation  protocol.Location
+	TargetLocation   protocol.Location
+	currentlySteered bool
+	ts               time.Time
 }
 
 // Initialize new satellite
-func NewSatellite(id int, endpoint string) *Satellite {
+func NewSatellite(id int, endpoint string, logger *log.Logger) *Satellite {
 	if endpoint == "" {
 		endpoint = defaultEndpoint
 	}
+	initalLoc := initialLocation()
 	return &Satellite{
-		ID:     id,
-		sender: send.NewSender(defaultQueueSize, endpoint),
-		Loc:    randomLocation(),
-		ts:     time.Now(),
+		ID:              id,
+		sender:          send.NewSender(defaultQueueSize, endpoint, logger),
+		Logger:          logger,
+		CurrentLocation: initalLoc,
+		TargetLocation:  initalLoc,
+		ts:              time.Now(),
 	}
 }
 
@@ -41,7 +49,7 @@ func (s *Satellite) ReadOzoneLevel() float64 {
 	return rand.Float64()/2 + rand.Float64()/2
 }
 
-func randomLocation() protocol.Location {
+func initialLocation() protocol.Location {
 	return protocol.Location{
 		Lat: rand.Float64()*(90-(-90)) - 90,   // Range for Latitude [-90,90)
 		Lng: rand.Float64()*(180-(-180)) - 90, // Range for Longitude [-180,180)
@@ -49,9 +57,18 @@ func randomLocation() protocol.Location {
 	}
 }
 
+// very naïve implementation of a limited update, we might leave the cosmic sphere that way :o
+func (s *Satellite) nextLocation() protocol.Location {
+	return protocol.Location{
+		Lat: s.CurrentLocation.Lat + rand.Float64()*0.1,
+		Lng: s.CurrentLocation.Lng + rand.Float64()*0.1,
+		Alt: s.CurrentLocation.Alt + rand.Float64()*0.1,
+	}
+}
+
 // Steer moves the satellite by a distance towards a new (random) location.
 func (s *Satellite) Steer(location protocol.Location) {
-	s.Loc = location
+	s.TargetLocation = location
 }
 
 func (s *Satellite) Orbit() error {
@@ -60,9 +77,12 @@ func (s *Satellite) Orbit() error {
 		switch kind := message.Kind; kind {
 		case protocol.KindAdjustCourse:
 			s.Steer(message.Location)
-			s.sender.Logger.Printf("Satellite steered to new location %+v", s.Loc)
+			s.currentlySteered = true
+			s.Logger.Printf("Groundstation steered us to new location %.2fkm away: %+v",
+				s.CurrentLocation.Distance(message.Location),
+				s.CurrentLocation)
 		default:
-			s.sender.Logger.Printf("Received message from groundstation of kind %d", message.Kind)
+			s.Logger.Printf("Received message from ground-station of kind %d", message.Kind)
 			break
 		}
 	})
@@ -74,23 +94,27 @@ func (s *Satellite) Orbit() error {
 	// Send messages with current ozone level to groundstation
 	for {
 		currentLevel := s.ReadOzoneLevel()
-		s.sender.EnqueueMessage(send.Message{
-			Payload: &protocol.SpaceMessage{
-				SenderID:   s.ID,
-				Kind:       protocol.KindOzoneLevel,
-				Timestamp:  time.Now(),
-				OzoneLevel: currentLevel,
-				Location:   s.Loc,
-			},
+		s.sender.EnqueueMessage(&protocol.SpaceMessage{
+			SenderID:   s.ID,
+			Kind:       protocol.KindOzoneLevel,
+			Timestamp:  time.Now(),
+			OzoneLevel: currentLevel,
+			Location:   s.CurrentLocation,
 		})
+
+		if !s.currentlySteered {
+			s.TargetLocation = s.nextLocation()
+		}
 
 		// The satellite is lost to the ground station
 		if rand.Float64() < 0.05 {
 			return errors.New("Deadly crash of satellite :(")
 		}
 
-		// It takes 2 seconds for the satellite to reach new location
-		// from which a new message will be sent
-		time.Sleep(2 * time.Second)
+		distance := s.CurrentLocation.Distance(s.TargetLocation)
+		s.Logger.Printf("flying to new location %.2fkm away", distance)
+		time.Sleep(time.Duration(distance) * time.Second / 100)
+		s.CurrentLocation = s.TargetLocation
+		s.currentlySteered = false
 	}
 }

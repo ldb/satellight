@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 )
@@ -20,13 +22,14 @@ func main() {
 	wg := sync.WaitGroup{}
 	for i := 1; i <= *satelliteCount; i++ {
 		wg.Add(1)
-		go func() {
-			err := NewSatellite(i, *endpoint).Orbit()
+		go func(i int) {
+			l := log.New(os.Stdout, fmt.Sprintf("[%d]: ", i), log.Ltime)
+			err := NewSatellite(i, *endpoint, l).Orbit()
 			if err != nil {
-				log.Printf(err.Error())
+				l.Printf(err.Error())
 				return
 			}
-		}()
+		}(i)
 		time.Sleep(5 * time.Second)
 	}
 	wg.Wait()

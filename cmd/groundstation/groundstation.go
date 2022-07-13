@@ -7,6 +7,7 @@ import (
 	"github.com/ldb/satellight/send"
 	"log"
 	"math"
+	"os"
 	"sync"
 	"time"
 )
@@ -18,6 +19,7 @@ const (
 )
 
 type GroundStation struct {
+	logger     *log.Logger
 	satellites map[int]*satellite
 	receiver   *receive.Receiver
 	mu         sync.RWMutex
@@ -28,8 +30,9 @@ type satellite struct {
 	sender *send.Sender
 }
 
-func NewGroundStation(addr string) *GroundStation {
+func NewGroundStation(addr string, logger *log.Logger) *GroundStation {
 	g := &GroundStation{
+		logger:     logger,
 		satellites: make(map[int]*satellite),
 	}
 	g.receiver = receive.NewReceiver(addr, g.handle())
@@ -41,19 +44,25 @@ func (g *GroundStation) handle() receive.SpaceMessageHandler {
 		if message.Kind == protocol.KindInvalid {
 			return
 		}
-		if time.Now().Sub(message.Timestamp) > 20*time.Second {
-			log.Printf("message too old, ignoring")
+		td := time.Now().Sub(message.Timestamp)
+		if td > 20*time.Second {
+			g.logger.Printf("message too old, ignoring (%.2fs)", td.Seconds())
 			return
 		}
 		satellitedID := message.SenderID
-		log.Printf("new message from satellite %d", satellitedID)
+		g.logger.Printf("new message from satellite %d", satellitedID)
 		g.mu.RLock()
 		_, ok := g.satellites[satellitedID]
 		g.mu.RUnlock()
 		if !ok {
+			sl := log.New(os.Stdout, fmt.Sprintf("SAT [%d] :", satellitedID), log.Ltime)
 			g.mu.Lock()
 			g.satellites[satellitedID] = &satellite{
-				sender: send.NewSender(defaultSenderQueueSize, fmt.Sprintf("%s:%d", *satelliteAddress, satellitesBasePort+satellitedID)),
+				sender: send.NewSender(
+					defaultSenderQueueSize,
+					fmt.Sprintf("%s:%d", *satelliteAddress, satellitesBasePort+satellitedID),
+					sl,
+				),
 			}
 			g.mu.Unlock()
 		}
@@ -67,11 +76,11 @@ func (g *GroundStation) handle() receive.SpaceMessageHandler {
 		if message.OzoneLevel >= considerOzoneCritical {
 			return
 		}
-		log.Printf("satellite %d found critical ozone levels!: %f", satellitedID, message.OzoneLevel)
+		g.logger.Printf("satellite %d found critical ozone levels!: %f", satellitedID, message.OzoneLevel)
 		closestSatellite, distance := g.locateClosestSatellite(message.Location)
-		log.Printf("satellite %d is closest to the zone (%.2fkm)", closestSatellite, distance)
+		g.logger.Printf("satellite %d is closest to the zone (%.2fkm)", closestSatellite, distance)
 		g.sendSatelliteToOzoneHole(closestSatellite, message.Location)
-		log.Printf("sent satellite %d to fix the ozone hole", closestSatellite)
+		g.logger.Printf("sent satellite %d to fix the ozone hole", closestSatellite)
 	}
 }
 
@@ -81,7 +90,7 @@ func (g *GroundStation) locateClosestSatellite(loc protocol.Location) (int, floa
 	dist := math.MaxFloat64
 	minID := 0
 	for id, sat := range g.satellites {
-		distance := 1.609344 * 3963.0 * math.Acos((math.Sin(loc.Lat)*math.Sin(sat.loc.Lat))+math.Cos(loc.Lat)*math.Cos(sat.loc.Lat)*math.Cos(sat.loc.Lng-loc.Lng))
+		distance := sat.loc.Distance(loc)
 		if distance < dist {
 			dist = distance
 			minID = id
@@ -97,13 +106,11 @@ func (g *GroundStation) sendSatelliteToOzoneHole(id int, loc protocol.Location) 
 	if !ok {
 		return
 	}
-	sat.sender.EnqueueMessage(send.Message{
-		Payload: &protocol.SpaceMessage{
-			Kind:      protocol.KindAdjustCourse,
-			Location:  loc,
-			SenderID:  groundStationSenderID,
-			Timestamp: time.Now(),
-		},
+	sat.sender.EnqueueMessage(&protocol.SpaceMessage{
+		Kind:      protocol.KindAdjustCourse,
+		Location:  loc,
+		SenderID:  groundStationSenderID,
+		Timestamp: time.Now(),
 	})
 }
 

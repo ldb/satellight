@@ -13,11 +13,12 @@ import (
 // Sender sends messages in a reliable way by queueing them and retrying any failed delivery.
 // Sender is designed to be used only by a single caller and thus not concurrency safe!
 type Sender struct {
+	// lastID tracks the ID of the last message that has entered the queue to provide consistent increments.
 	lastID int
 
-	queue chan Message
-
-	current Message
+	queue chan message
+	// currently dequeued Message for attempted delivery
+	current message
 
 	// This can be used to pass a custom logger to the sender. Left unset it defaults to the log default logger.
 	Logger *log.Logger
@@ -30,12 +31,12 @@ type Sender struct {
 	nextRetry time.Time
 }
 
-func NewSender(queueSize int, endpoint string) *Sender {
+func NewSender(queueSize int, endpoint string, logger *log.Logger) *Sender {
 	s := new(Sender)
-	s.queue = make(chan Message, queueSize)
+	s.Logger = logger
+	s.queue = make(chan message, queueSize)
 	s.endpoint = endpoint
 	s.client = http.DefaultClient
-	s.Logger = log.Default()
 	go s.run()
 	return s
 }
@@ -48,18 +49,9 @@ type message struct {
 	Data      protocol.SpaceMessageMarshaler `json:"data"`
 }
 
-type Message struct {
-	id      int
-	Payload protocol.SpaceMessageMarshaler
-}
-
-func (s *Sender) sendMessage(msg Message) error {
-	m := message{
-		ID:        msg.id,
-		Timestamp: time.Now(),
-		Data:      msg.Payload,
-	}
-	b, err := json.Marshal(m)
+func (s *Sender) sendMessage(msg message) error {
+	msg.Timestamp = time.Now()
+	b, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("error encoding protocol: %w", err)
 	}
@@ -86,9 +78,8 @@ func backoff(retries int) time.Time {
 func (s *Sender) run() {
 	for {
 		m := s.current
-		if m.id == 0 {
+		if m.ID == 0 {
 			m = <-s.queue
-			s.Logger.Printf("dequeued protocol %d", m.id)
 		}
 
 		if !s.nextRetry.Before(time.Now()) {
@@ -99,19 +90,23 @@ func (s *Sender) run() {
 			s.retries += 1
 			s.nextRetry = backoff(s.retries)
 			s.current = m
-			s.Logger.Printf("current protocol is %d, err: %v", m.id, err)
+			s.Logger.Printf("message %d failed to deliver, retrying in %ds", m.ID, s.retries)
 			continue
 		}
-		s.Logger.Printf("successfully sent protocol %d", m.id)
-		s.current = Message{}
+		s.Logger.Printf("successfully sent message %d", m.ID)
+		s.current = message{}
 		s.retries = 0
 		s.nextRetry = time.Now()
 	}
 }
 
-func (s *Sender) EnqueueMessage(message Message) int {
+func (s *Sender) EnqueueMessage(msg *protocol.SpaceMessage) int {
 	s.lastID += 1
-	message.id = s.lastID
-	s.queue <- message
+	m := message{
+		Data:      msg,
+		Timestamp: time.Now(),
+		ID:        s.lastID,
+	}
+	s.queue <- m
 	return s.lastID
 }
