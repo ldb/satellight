@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 )
 
 const satellitesBasePort = 9000
@@ -13,8 +15,14 @@ var groundStationAddress = flag.String("groundstation", ":8000", "address to lis
 
 func main() {
 	flag.Parse()
+
+	// Seeding RNG.
+	rand.Seed(time.Now().Unix())
+
 	l := log.New(os.Stdout, "GS: ", log.Ltime)
 	g := NewGroundStation(*groundStationAddress, l)
 	log.Printf("groundstation started listening on %s", *groundStationAddress)
-	log.Fatal(g.Run())
+	close := make(chan struct{})
+	_ = g.Run() // Ignoring the shutdown function.
+	<-close
 }

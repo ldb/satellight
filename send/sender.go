@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ldb/satellight/protocol"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -60,6 +61,9 @@ func (s *Sender) sendMessage(msg message) error {
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
+	// Simulate network latency in interval [1s,5s)
+	// Reasonable, considering that we are sending messages through outer space.
+	time.Sleep(time.Duration(rand.Intn(4))*time.Second + time.Second)
 	res, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error sending request: %v", err)

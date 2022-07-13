@@ -87,12 +87,25 @@ func (s *Satellite) Orbit() error {
 		}
 	})
 
-	receiver := receive.NewReceiver(fmt.Sprintf(":%d", standartPort+s.ID), handler)
+	receiver := receive.NewReceiver(fmt.Sprintf(":%d", standartPort+s.ID), handler, s.Logger)
 
-	go receiver.Run()
+	stopReceiver := receiver.Run()
+	s.Logger.Println("going to space huiiiii")
+	time.Sleep(time.Second)
+	s.Logger.Println("reached space, starting to orbit")
 
 	// Send messages with current ozone level to groundstation
 	for {
+		if !s.currentlySteered {
+			s.TargetLocation = s.nextLocation()
+		}
+
+		// The satellite is lost to the ground station
+		if rand.Float64() < 0.05 {
+			stopReceiver()
+			return errors.New("My battery is low and it's getting dark :(")
+		}
+
 		currentLevel := s.ReadOzoneLevel()
 		s.sender.EnqueueMessage(&protocol.SpaceMessage{
 			SenderID:   s.ID,
@@ -101,15 +114,6 @@ func (s *Satellite) Orbit() error {
 			OzoneLevel: currentLevel,
 			Location:   s.CurrentLocation,
 		})
-
-		if !s.currentlySteered {
-			s.TargetLocation = s.nextLocation()
-		}
-
-		// The satellite is lost to the ground station
-		if rand.Float64() < 0.05 {
-			return errors.New("Deadly crash of satellite :(")
-		}
 
 		distance := s.CurrentLocation.Distance(s.TargetLocation)
 		s.Logger.Printf("flying to new location %.2fkm away", distance)

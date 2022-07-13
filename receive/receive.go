@@ -1,6 +1,7 @@
 package receive
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/ldb/satellight/protocol"
 	"io/ioutil"
@@ -15,14 +16,16 @@ type SpaceMessageHandler func(message protocol.SpaceMessage)
 
 type Receiver struct {
 	server http.Server
+	logger *log.Logger
 }
 
-func NewReceiver(addr string, handle SpaceMessageHandler) *Receiver {
+func NewReceiver(addr string, handle SpaceMessageHandler, log *log.Logger) *Receiver {
 	r := Receiver{
 		server: http.Server{
 			Addr:    addr,
 			Handler: handleMessage(handle),
 		},
+		logger: log,
 	}
 	return &r
 }
@@ -53,6 +56,18 @@ func handleMessage(msgHandle SpaceMessageHandler) http.HandlerFunc {
 	}
 }
 
-func (r *Receiver) Run() error {
-	return r.server.ListenAndServe()
+func (r *Receiver) Run() func() {
+	go func() {
+		r.logger.Println("starting receiver")
+		if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			r.logger.Println("error running receiver: %v", err)
+		}
+	}()
+	return func() {
+		r.logger.Println("stopping receiver")
+		ctx, _ := context.WithTimeout(context.Background(), time.Second)
+		if err := r.server.Shutdown(ctx); err != nil && err != http.ErrServerClosed {
+			r.logger.Printf("error stopping receiver: %v", err)
+		}
+	}
 }

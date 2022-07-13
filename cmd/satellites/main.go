@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"sync"
 	"time"
@@ -17,6 +18,9 @@ const standartPort = 9000
 func main() {
 	flag.Parse()
 
+	// Seeding RNG.
+	rand.Seed(time.Now().Unix())
+
 	log.Println("Satellites go space")
 
 	wg := sync.WaitGroup{}
@@ -26,7 +30,8 @@ func main() {
 			l := log.New(os.Stdout, fmt.Sprintf("[%d]: ", i), log.Ltime)
 			err := NewSatellite(i, *endpoint, l).Orbit()
 			if err != nil {
-				l.Printf(err.Error())
+				l.Printf("error received from satellite: %v", err)
+				wg.Done()
 				return
 			}
 		}(i)

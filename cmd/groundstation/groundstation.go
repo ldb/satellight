@@ -35,13 +35,18 @@ func NewGroundStation(addr string, logger *log.Logger) *GroundStation {
 		logger:     logger,
 		satellites: make(map[int]*satellite),
 	}
-	g.receiver = receive.NewReceiver(addr, g.handle())
+	g.receiver = receive.NewReceiver(addr, g.handle(), logger)
 	return g
 }
 
 func (g *GroundStation) handle() receive.SpaceMessageHandler {
 	return func(message protocol.SpaceMessage) {
 		if message.Kind == protocol.KindInvalid {
+			g.logger.Println("message of invalid kind")
+			return
+		}
+		if message.SenderID == groundStationSenderID {
+			g.logger.Println("message from invalid sender")
 			return
 		}
 		td := time.Now().Sub(message.Timestamp)
@@ -76,7 +81,7 @@ func (g *GroundStation) handle() receive.SpaceMessageHandler {
 		if message.OzoneLevel >= considerOzoneCritical {
 			return
 		}
-		g.logger.Printf("satellite %d found critical ozone levels!: %f", satellitedID, message.OzoneLevel)
+		g.logger.Printf("satellite %d detected critical ozone levels!: %f", satellitedID, message.OzoneLevel)
 		closestSatellite, distance := g.locateClosestSatellite(message.Location)
 		g.logger.Printf("satellite %d is closest to the zone (%.2fkm)", closestSatellite, distance)
 		g.sendSatelliteToOzoneHole(closestSatellite, message.Location)
@@ -114,6 +119,6 @@ func (g *GroundStation) sendSatelliteToOzoneHole(id int, loc protocol.Location) 
 	})
 }
 
-func (g *GroundStation) Run() error {
+func (g *GroundStation) Run() func() {
 	return g.receiver.Run()
 }
