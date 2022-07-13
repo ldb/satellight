@@ -105,7 +105,7 @@ func (s *Satellite) Orbit() error {
 		}
 
 		// The satellite is lost to the ground station
-		if rand.Float64() < 0.05 {
+		if rand.Float64() < 0.01 {
 			stopReceiver()
 			return errors.New("My battery is low and it's getting dark :(")
 		}
@@ -122,7 +122,7 @@ func (s *Satellite) Orbit() error {
 		
 		distance := s.CurrentLocation.Distance(s.TargetLocation)
 		s.Logger.Printf("flying to new location %.2fkm away", distance)
-		time.Sleep(time.Duration(distance) * time.Second / 100)
+		time.Sleep(time.Duration(distance) * time.Second / 1000)
 		s.CurrentLocation = s.TargetLocation
 		s.currentlySteered = false
 	}
