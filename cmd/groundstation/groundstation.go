@@ -82,7 +82,7 @@ func (g *GroundStation) handle() receive.SpaceMessageHandler {
 			return
 		}
 		g.logger.Printf("satellite %d detected critical ozone levels!: %f", satellitedID, message.OzoneLevel)
-		closestSatellite, distance := g.locateClosestSatellite(message.Location)
+		closestSatellite, distance := g.locateClosestSatellite(satellitedID, message.Location)
 		g.logger.Printf("satellite %d is closest to the zone (%.2fkm)", closestSatellite, distance)
 		g.sendSatelliteToOzoneHole(closestSatellite, message.Location)
 		g.logger.Printf("sent satellite %d to fix the ozone hole", closestSatellite)
@@ -91,16 +91,21 @@ func (g *GroundStation) handle() receive.SpaceMessageHandler {
 
 // locateClosestSatellite calculates the distance of each satellite to
 // loc and returns the ID of the satellite with the lowest distance.
-func (g *GroundStation) locateClosestSatellite(loc protocol.Location) (int, float64) {
+func (g *GroundStation) locateClosestSatellite(exc int, loc protocol.Location) (int, float64) {
 	dist := math.MaxFloat64
 	minID := 0
+	g.mu.RLock()
 	for id, sat := range g.satellites {
+		if id == exc {
+			continue
+		}
 		distance := sat.loc.Distance(loc)
 		if distance < dist {
 			dist = distance
 			minID = id
 		}
 	}
+	g.mu.RUnlock()
 	return minID, dist
 }
 
