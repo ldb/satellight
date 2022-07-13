@@ -10,9 +10,9 @@ import (
 type Kind int
 
 const (
-	KindInvalid Kind = iota
-	KindOzoneLevel
-	KindAdjustCourse
+	KindInvalid      Kind = iota
+	KindOzoneLevel        // Messages of this kind contain an ozone reading for the current location.
+	KindAdjustCourse      // Messages of this kind contain a new target location of a satellite.
 )
 
 // Messages are really just marshalled into JSON when transmitted over the network.
