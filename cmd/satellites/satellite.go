@@ -27,7 +27,7 @@ type Satellite struct {
 	ts               time.Time
 }
 
-// Initialize new satellite
+// NewSatellite initializes a new satellite.
 func NewSatellite(id int, endpoint string, logger *log.Logger) *Satellite {
 	if endpoint == "" {
 		endpoint = defaultEndpoint
@@ -44,11 +44,12 @@ func NewSatellite(id int, endpoint string, logger *log.Logger) *Satellite {
 }
 
 // ReadOzoneLevel reads the Ozone Levels at the current location.
-// The probability of values around 0,5 is higher than towards the edges
+// The probability of values around 0,5 is higher than towards the edges.
 func (s *Satellite) ReadOzoneLevel() float64 {
 	return rand.Float64()/2 + rand.Float64()/2
 }
 
+// Random initial location. Satellites are launched into Orbit from all over the world.
 func initialLocation() protocol.Location {
 	return protocol.Location{
 		Lat: rand.Float64()*(90-(-90)) - 90,   // Range for Latitude [-90,90)
@@ -57,7 +58,7 @@ func initialLocation() protocol.Location {
 	}
 }
 
-// very naïve implementation of a limited update, we might leave the cosmic sphere that way :o
+// Very naïve implementation of a limited update, we might leave the cosmic sphere that way :o.
 func (s *Satellite) nextLocation() protocol.Location {
 	return protocol.Location{
 		Lat: s.CurrentLocation.Lat + rand.Float64()*0.1,
@@ -67,12 +68,14 @@ func (s *Satellite) nextLocation() protocol.Location {
 }
 
 // Steer moves the satellite by a distance towards a new (random) location.
+// This function should only be invoked when the satellite was instructed to adjust it's location by the ground-station.
 func (s *Satellite) Steer(location protocol.Location) {
 	s.TargetLocation = location
 }
 
+// Orbit is the main run-loop of a satellite.
 func (s *Satellite) Orbit() error {
-	// Handle messages received by the satellite
+	// Handle messages received by the satellite asynchronously.
 	handler := receive.SpaceMessageHandler(func(message protocol.SpaceMessage) {
 		switch kind := message.Kind; kind {
 		case protocol.KindAdjustCourse:
@@ -89,13 +92,14 @@ func (s *Satellite) Orbit() error {
 
 	receiver := receive.NewReceiver(fmt.Sprintf(":%d", standartPort+s.ID), handler, s.Logger)
 
+	// receiver runs concurrently to the rest of this function.
 	stopReceiver := receiver.Run()
 	s.Logger.Println("going to space huiiiii")
 	time.Sleep(time.Second)
 	s.Logger.Println("reached space, starting to orbit")
 
-	// Send messages with current ozone level to groundstation
 	for {
+		// If the ground-station is not steering us, randomly move around in space.
 		if !s.currentlySteered {
 			s.TargetLocation = s.nextLocation()
 		}
@@ -106,6 +110,7 @@ func (s *Satellite) Orbit() error {
 			return errors.New("My battery is low and it's getting dark :(")
 		}
 
+		// Send messages with current ozone level to groundstation
 		currentLevel := s.ReadOzoneLevel()
 		s.sender.EnqueueMessage(&protocol.SpaceMessage{
 			SenderID:   s.ID,
@@ -114,7 +119,7 @@ func (s *Satellite) Orbit() error {
 			OzoneLevel: currentLevel,
 			Location:   s.CurrentLocation,
 		})
-
+		
 		distance := s.CurrentLocation.Distance(s.TargetLocation)
 		s.Logger.Printf("flying to new location %.2fkm away", distance)
 		time.Sleep(time.Duration(distance) * time.Second / 100)

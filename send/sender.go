@@ -12,14 +12,14 @@ import (
 )
 
 // Sender sends messages in a reliable way by queueing them and retrying any failed delivery.
-// Sender is designed to be used only by a single caller and thus not concurrency safe!
+// It is designed to be used only by a single caller and thus not concurrency safe!
 type Sender struct {
 	// lastID tracks the ID of the last message that has entered the queue to provide consistent increments.
 	lastID int
 
-	queue chan message
-	// currently dequeued Message for attempted delivery
+	// Currently dequeued Message for delivery attempt.
 	current message
+	queue   chan message
 
 	// This can be used to pass a custom logger to the sender. Left unset it defaults to the log default logger.
 	Logger *log.Logger
@@ -74,11 +74,13 @@ func (s *Sender) sendMessage(msg message) error {
 	return nil
 }
 
+// backoff returns the backoff period based on the number of past retries.
 func backoff(retries int) time.Time {
 	return time.Now().Add(time.Duration(retries) * time.Second)
 }
 
-// run starts the main runloop for the sender. It dequeues any messages and attempts delivery.
+// run starts the main runloop for the sender.
+// It dequeues any messages and attempts delivery.
 func (s *Sender) run() {
 	for {
 		m := s.current
@@ -86,6 +88,7 @@ func (s *Sender) run() {
 			m = <-s.queue
 		}
 
+		// Wait until next retry.
 		if !s.nextRetry.Before(time.Now()) {
 			time.Sleep(s.nextRetry.Sub(time.Now()))
 		}
@@ -104,6 +107,7 @@ func (s *Sender) run() {
 	}
 }
 
+// EnqueueMessage adds a message to the delivery queue after assigning it a new ID.
 func (s *Sender) EnqueueMessage(msg *protocol.SpaceMessage) int {
 	s.lastID += 1
 	m := message{

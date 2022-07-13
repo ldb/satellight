@@ -23,6 +23,7 @@ func main() {
 
 	log.Println("Satellites go space")
 
+	// Spin up new satellites.
 	wg := sync.WaitGroup{}
 	for i := 1; i <= *satelliteCount; i++ {
 		wg.Add(1)

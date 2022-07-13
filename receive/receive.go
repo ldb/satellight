@@ -10,8 +10,7 @@ import (
 	"time"
 )
 
-const defaultListenAddress = ":8000"
-
+// Callback handler for received messages.
 type SpaceMessageHandler func(message protocol.SpaceMessage)
 
 type Receiver struct {
@@ -19,6 +18,7 @@ type Receiver struct {
 	logger *log.Logger
 }
 
+// NewReceiver creates a new receiver.
 func NewReceiver(addr string, handle SpaceMessageHandler, log *log.Logger) *Receiver {
 	r := Receiver{
 		server: http.Server{
@@ -30,6 +30,8 @@ func NewReceiver(addr string, handle SpaceMessageHandler, log *log.Logger) *Rece
 	return &r
 }
 
+// handleMessage handles an incoming message by unmarshalling it from JSON and passing it into the
+// provided SpaceMessageHandler callback function.
 func handleMessage(msgHandle SpaceMessageHandler) http.HandlerFunc {
 	type message struct {
 		ID        int                   `json:"id"`
@@ -56,6 +58,8 @@ func handleMessage(msgHandle SpaceMessageHandler) http.HandlerFunc {
 	}
 }
 
+// Run is the main runloop for the receiver.
+// It concurrently runs an HTTP server and returns a function to stop the receiver.
 func (r *Receiver) Run() func() {
 	go func() {
 		r.logger.Println("starting receiver")
